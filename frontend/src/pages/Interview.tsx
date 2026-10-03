@@ -37,9 +37,22 @@ function Interview() {
         setAnswer] =
         useState("");
 
+    const [selectedOption,
+        setSelectedOption] =
+        useState("");
+
     const [loading,
         setLoading] =
         useState(false);
+
+    const [attemptedCount,
+        setAttemptedCount] =
+        useState(0);
+
+    const [answers, setAnswers] =
+        useState<(string | null)[]>(
+            new Array(questions.length).fill(null)
+        );
 
     const totalQuestions =
         questions.length;
@@ -48,28 +61,55 @@ function Interview() {
         ((currentQuestion + 1)
             / totalQuestions) * 100;
 
-    const handleNext =
-        async () => {
+    const currentQ =
+        questions[currentQuestion];
 
-            if (!answer.trim()) {
+    const isMcq =
+        currentQ?.type === "mcq";
 
-                alert(
-                    "Please enter your answer"
-                );
+    const currentAnswer =
+        isMcq ? selectedOption : answer;
 
-                return;
-            }
+    const goToNextOrFinish =
+        async (
+            didAttempt: boolean
+        ) => {
 
             try {
 
                 setLoading(true);
 
-                await submitAnswer(
-                    interviewId,
-                    answer
-                );
+                const updatedAnswers =
+                    [...answers];
 
+                if (didAttempt) {
+
+                    await submitAnswer(
+                        interviewId,
+                        currentAnswer,
+                        currentQuestion
+                    );
+
+                    updatedAnswers[currentQuestion] =
+                        currentAnswer;
+
+                    setAttemptedCount(
+                        (prev) => prev + 1
+                    );
+                } else {
+                    await submitAnswer(
+                        interviewId,
+                        "Not attempted",
+                        currentQuestion
+                    );
+
+                    updatedAnswers[currentQuestion] =
+                        "Not attempted";
+                }
+
+                setAnswers(updatedAnswers);
                 setAnswer("");
+                setSelectedOption("");
 
                 if (
                     currentQuestion <
@@ -87,7 +127,19 @@ function Interview() {
                     );
 
                     navigate(
-                        "/completed"
+                        "/completed",
+                        {
+                            state: {
+                                attemptedCount:
+                                    didAttempt
+                                        ? attemptedCount + 1
+                                        : attemptedCount,
+                                totalQuestions,
+                                questions,
+                                answers:
+                                    updatedAnswers
+                            }
+                        }
                     );
 
                 }
@@ -103,6 +155,41 @@ function Interview() {
                 setLoading(false);
 
             }
+        };
+
+    const handleNext =
+        async () => {
+
+            if (isMcq) {
+
+                if (!selectedOption) {
+
+                    alert(
+                        "Please select an option"
+                    );
+
+                    return;
+                }
+
+            } else {
+
+                if (!answer.trim()) {
+
+                    alert(
+                        "Please enter your answer"
+                    );
+
+                    return;
+                }
+            }
+
+            await goToNextOrFinish(true);
+        };
+
+    const handleSkip =
+        async () => {
+
+            await goToNextOrFinish(false);
         };
 
     return (
@@ -135,6 +222,20 @@ function Interview() {
 
                             </span>
 
+                            <span className={`text-sm font-medium px-3 py-1 rounded-full ${
+                                isMcq
+                                    ? "bg-purple-100 text-purple-700"
+                                    : "bg-green-100 text-green-700"
+                            }`}>
+
+                                {isMcq ? "MCQ" : "Theory"}
+
+                            </span>
+
+                        </div>
+
+                        <div className="flex justify-between mb-2">
+
                             <span>
 
                                 {Math.round(
@@ -163,49 +264,72 @@ function Interview() {
                     <div className="mt-8">
 
                         <QuestionCard
-                            question={
-                                questions[
-                                currentQuestion
-                                ]
+                            question={currentQ}
+                            selectedOption={
+                                selectedOption
+                            }
+                            onSelectOption={
+                                setSelectedOption
                             }
                         />
 
                     </div>
 
-                    <div className="mt-8">
+                    {!isMcq && (
 
-                        <label className="block mb-2 text-gray-700">
+                        <div className="mt-8">
 
-                            Your Answer
+                            <label className="block mb-2 text-gray-700">
 
-                        </label>
+                                Your Answer
 
-                        <textarea
-                            rows={8}
-                            value={answer}
-                            onChange={(e) =>
-                                setAnswer(
-                                    e.target.value
-                                )
-                            }
-                            className="w-full border border-gray-300 rounded-xl p-4 resize-none"
-                            placeholder="Type your answer here..."
-                        />
+                            </label>
+
+                            <textarea
+                                rows={8}
+                                value={answer}
+                                onChange={(e) =>
+                                    setAnswer(
+                                        e.target.value
+                                    )
+                                }
+                                className="w-full border border-gray-300 rounded-xl p-4 resize-none"
+                                placeholder="Type your answer here..."
+                            />
+
+                        </div>
+
+                    )}
+
+                    <div className="flex gap-4 mt-8">
+
+                        <button
+                            onClick={handleSkip}
+                            disabled={loading}
+                            className="w-full bg-gray-200 hover:bg-gray-300 text-gray-700 py-4 rounded-xl font-semibold transition"
+                        >
+
+                            {currentQuestion ===
+                                totalQuestions - 1
+                                ? "Skip & Finish"
+                                : "Skip & Next"}
+
+                        </button>
+
+                        <button
+                            onClick={handleNext}
+                            disabled={loading}
+                            className="w-full bg-blue-600 hover:bg-blue-700 text-white py-4 rounded-xl font-semibold transition"
+                        >
+
+                            {currentQuestion ===
+                                totalQuestions - 1
+                                ? "Finish"
+                                : "Next"}
+
+                        </button>
 
                     </div>
-
-                    <button
-                        onClick={handleNext}
-                        disabled={loading}
-                        className="w-full mt-8 bg-blue-600 hover:bg-blue-700 text-white py-4 rounded-xl font-semibold"
-                    >
-
-                        {currentQuestion ===
-                            totalQuestions - 1
-                            ? "Submit Interview"
-                            : "Next Question"}
-
-                    </button>
 
                 </div>
 

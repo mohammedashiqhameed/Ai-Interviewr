@@ -1,6 +1,6 @@
 import Candidate from "../models/Candidate";
 import Interview from "../models/Interview";
-import { model } from "../config/gemini";
+import { model, questionGenModel } from "../config/gemini";
 
 export const startInterview = async (req: any, res: any) => {
     try {
@@ -25,52 +25,126 @@ export const startInterview = async (req: any, res: any) => {
         }
 
         const prompt = `
-Generate exactly 10 technical interview questions based on the resume below.
+You are an expert technical interviewer. Based on the candidate's resume below, generate EXACTLY 10 technical interview questions.
 
 Resume:
 ${candidate.resumeText}
 
-Rules:
-- Return exactly 10 questions
-- One question per line
-- No numbering
-- No explanations
+STRICT GENERATION RULES:
+1. The output MUST be a valid JSON array of EXACTLY 10 questions.
+2. Questions 1 to 5 (indices 0 to 4) MUST be THEORY questions:
+   - "type": "theory"
+   - "question": string (concise, high quality technical theory question)
+   - Do NOT include options or correctAnswer for theory questions.
+3. Questions 6 to 10 (indices 5 to 9) MUST be MCQ (Multiple Choice) questions:
+   - "type": "mcq"
+   - "question": string (technical multiple choice question)
+   - "options": an array of EXACTLY 4 distinct string choices (e.g. ["Choice A", "Choice B", "Choice C", "Choice D"])
+   - "correctAnswer": string (MUST EXACTLY match one of the 4 options)
+4. Order MUST be strictly:
+   - Question 1: theory
+   - Question 2: theory
+   - Question 3: theory
+   - Question 4: theory
+   - Question 5: theory
+   - Question 6: mcq (with 4 options & correctAnswer)
+   - Question 7: mcq (with 4 options & correctAnswer)
+   - Question 8: mcq (with 4 options & correctAnswer)
+   - Question 9: mcq (with 4 options & correctAnswer)
+   - Question 10: mcq (with 4 options & correctAnswer)
+
+Return ONLY the raw JSON array.
 `;
 
-        console.log("Sending prompt to Gemini...");
+        console.log("Sending prompt to Gemini for question generation...");
 
-        const result = await model.generateContent(prompt);
+        const result = await questionGenModel.generateContent(prompt);
 
-        const response = result.response.text();
+        const responseText = result.response.text();
 
-        console.log("Gemini Response:", response);
+        console.log("Gemini Response:", responseText);
 
-        const questions = response
-            .split("\n")
-            .map((q) => q.trim())
-            .filter((q) => q.length > 0)
-            .slice(0, 10);
+        // Extract JSON from response (handle markdown code blocks if any)
+        let jsonString = responseText.trim();
+        const jsonMatch = jsonString.match(/```(?:json)?\s*([\s\S]*?)```/);
+        if (jsonMatch) {
+            jsonString = jsonMatch[1].trim();
+        }
 
-        if (questions.length === 0) {
+        let rawQuestions: any[] = JSON.parse(jsonString);
+
+        if (!Array.isArray(rawQuestions) || rawQuestions.length === 0) {
             return res.status(500).json({
                 message: "No questions generated",
             });
         }
 
+        // Validate and normalize exactly 10 questions (first 5 theory, next 5 mcq)
+        const validatedQuestions = rawQuestions.slice(0, 10).map((q: any, index: number) => {
+            if (index < 5) {
+                // Ensure questions 1-5 are theory
+                return {
+                    type: "theory" as const,
+                    question: q.question || `Technical question ${index + 1}`
+                };
+            } else {
+                // Ensure questions 6-10 are MCQ
+                const rawOptions = Array.isArray(q.options) ? q.options.map(String) : [];
+                let options = rawOptions.filter((opt: string) => opt.trim().length > 0);
+                while (options.length < 4) {
+                    options.push(`Option ${options.length + 1}`);
+                }
+                if (options.length > 4) {
+                    options = options.slice(0, 4);
+                }
+
+                let correctAnswer = q.correctAnswer ? String(q.correctAnswer).trim() : options[0];
+                if (!options.includes(correctAnswer)) {
+                    correctAnswer = options[0];
+                }
+
+                return {
+                    type: "mcq" as const,
+                    question: q.question || `Technical multiple-choice question ${index + 1}`,
+                    options,
+                    correctAnswer
+                };
+            }
+        });
+
+        // Store full questions (with correctAnswer) in MongoDB
+        // Pre-fill answers with "Not attempted" for all 10 questions
+        const initialAnswers = new Array(validatedQuestions.length).fill("Not attempted");
+
         const interview = await Interview.create({
             candidateId: candidate._id,
             candidateName: candidate.name,
             email: candidate.email,
-            questions,
-            answers: [],
+            questions: validatedQuestions,
+            answers: initialAnswers,
             score: 0,
             feedback: "",
             completed: false,
         });
 
+        // Strip correctAnswer before sending to frontend
+        const frontendQuestions = validatedQuestions.map((q: any) => {
+            if (q.type === "mcq") {
+                return {
+                    type: q.type,
+                    question: q.question,
+                    options: q.options,
+                };
+            }
+            return {
+                type: q.type,
+                question: q.question,
+            };
+        });
+
         return res.status(200).json({
             interviewId: interview._id,
-            questions,
+            questions: frontendQuestions,
         });
 
     } catch (error: any) {
@@ -84,7 +158,7 @@ Rules:
 
 export const submitAnswer = async (req: any, res: any) => {
     try {
-        const { interviewId, answer } = req.body;
+        const { interviewId, questionIndex, answer } = req.body;
 
         const interview: any = await Interview.findById(interviewId);
 
@@ -94,8 +168,28 @@ export const submitAnswer = async (req: any, res: any) => {
             });
         }
 
-        interview.answers.push(answer);
+        const totalQ = interview.questions ? interview.questions.length : 10;
 
+        // Ensure answers array is sized to match questions
+        if (!Array.isArray(interview.answers) || interview.answers.length === 0) {
+            interview.answers = new Array(totalQ).fill("Not attempted");
+        } else {
+            while (interview.answers.length < totalQ) {
+                interview.answers.push("Not attempted");
+            }
+        }
+
+        const answerValue = (answer !== undefined && answer !== null && String(answer).trim() !== "")
+            ? String(answer).trim()
+            : "Not attempted";
+
+        if (typeof questionIndex === "number" && questionIndex >= 0 && questionIndex < totalQ) {
+            interview.answers[questionIndex] = answerValue;
+        } else {
+            interview.answers.push(answerValue);
+        }
+
+        interview.markModified("answers");
         await interview.save();
 
         return res.status(200).json({
@@ -123,27 +217,48 @@ export const finishInterview = async (req: any, res: any) => {
             });
         }
 
+        // Build evaluation data for each question
+        const evaluationData = interview.questions.map((q: any, i: number) => {
+            const candidateAnswer = interview.answers[i] || "Not attempted";
+
+            if (q.type === "mcq") {
+                return `
+Question ${i + 1} (MCQ):
+${q.question}
+Options: ${q.options.join(", ")}
+Correct Answer: ${q.correctAnswer}
+Candidate Answer: ${candidateAnswer}`;
+            }
+
+            return `
+Question ${i + 1} (Theory):
+${q.question}
+Candidate Answer: ${candidateAnswer}`;
+        });
+
         const prompt = `
 You are a technical interviewer.
 
-Evaluate the following interview answers.
+Evaluate the following interview answers. There are 10 questions total: 5 theory and 5 MCQ.
 
-Questions:
-${interview.questions.join("\n")}
+${evaluationData.join("\n")}
 
-Answers:
-${interview.answers.join("\n")}
+Evaluation Rules:
+- For theory questions: evaluate correctness, relevance, and technical understanding.
+- For MCQ questions: compare the candidate's answer with the provided correct answer. If they match, it is correct. If they don't match, it is incorrect. Do NOT guess the correct answer yourself.
+- If an answer is "Not attempted" or empty, give 0 marks for that question.
+- Each question is worth 10 marks (total 100).
 
 Provide:
 
-Score: XX
+Score: XX (out of 100)
 
-Feedback: Detailed feedback
+Feedback: Detailed feedback for each question
 `;
 
-        const result = await model.generateContent(prompt);
+        const resultResponse = await model.generateContent(prompt);
 
-        const evaluation = result.response.text();
+        const evaluation = resultResponse.response.text();
 
         let score = 0;
 

@@ -17,3 +17,11 @@ export const model =
     genAI.getGenerativeModel({
         model: "gemini-2.5-flash"
     });
+
+export const questionGenModel =
+    genAI.getGenerativeModel({
+        model: "gemini-2.5-flash",
+        generationConfig: {
+            responseMimeType: "application/json"
+        }
+    });

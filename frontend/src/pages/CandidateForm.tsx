@@ -1,5 +1,6 @@
 import {
-    useState
+    useState,
+    useEffect
 } from "react";
 
 import {
@@ -13,16 +14,27 @@ import {
 }
     from "../services/interviewService";
 
+import {
+    useAuth
+} from "../context/AuthContext";
+
 function CandidateForm() {
 
     const navigate =
         useNavigate();
 
+    const { user } = useAuth();
+
     const [name, setName] =
-        useState("");
+        useState(user?.name || "");
 
     const [email, setEmail] =
-        useState("");
+        useState(user?.email || "");
+
+    useEffect(() => {
+        if (user?.name) setName(user.name);
+        if (user?.email) setEmail(user.email);
+    }, [user]);
 
     const [phone, setPhone] =
         useState("");
@@ -149,12 +161,8 @@ function CandidateForm() {
                                 type="text"
                                 required
                                 value={name}
-                                onChange={(e) =>
-                                    setName(
-                                        e.target.value
-                                    )
-                                }
-                                className="w-full border border-gray-300 rounded-xl p-3"
+                                disabled
+                                className="w-full border border-gray-300 rounded-xl p-3 bg-gray-100 cursor-not-allowed"
                             />
 
                         </div>
@@ -171,12 +179,8 @@ function CandidateForm() {
                                 type="email"
                                 required
                                 value={email}
-                                onChange={(e) =>
-                                    setEmail(
-                                        e.target.value
-                                    )
-                                }
-                                className="w-full border border-gray-300 rounded-xl p-3"
+                                disabled
+                                className="w-full border border-gray-300 rounded-xl p-3 bg-gray-100 cursor-not-allowed"
                             />
 
                         </div>

@@ -9,6 +9,8 @@ import Signup from "../pages/Signup";
 import CandidateForm from "../pages/CandidateForm";
 import Interview from "../pages/Interview";
 import Completed from "../pages/Completed";
+import ProtectedRoute from "../components/ProtectedRoute";
+
 function AppRoutes() {
     return (
         <Routes>
@@ -27,18 +29,32 @@ function AppRoutes() {
                 path="/signup"
                 element={<Signup />}
             />
+
             <Route
                 path="/candidate"
-                element={<CandidateForm />}
+                element={
+                    <ProtectedRoute>
+                        <CandidateForm />
+                    </ProtectedRoute>
+                }
             />
+
             <Route
                 path="/interview"
-                element={<Interview />}
+                element={
+                    <ProtectedRoute>
+                        <Interview />
+                    </ProtectedRoute>
+                }
             />
 
             <Route
                 path="/completed"
-                element={<Completed />}
+                element={
+                    <ProtectedRoute>
+                        <Completed />
+                    </ProtectedRoute>
+                }
             />
 
         </Routes>

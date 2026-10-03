@@ -12,7 +12,7 @@ const interviewSchema =
 
             email: String,
 
-            questions: [String],
+            questions: [mongoose.Schema.Types.Mixed],
 
             answers: [String],
 

@@ -59,7 +59,8 @@ export const startInterview =
 export const submitAnswer =
     async (
         interviewId: string,
-        answer: string
+        answer: string,
+        questionIndex?: number
     ) => {
 
         const response =
@@ -67,7 +68,8 @@ export const submitAnswer =
                 "/interview/answer",
                 {
                     interviewId,
-                    answer
+                    answer,
+                    questionIndex
                 }
             );
 

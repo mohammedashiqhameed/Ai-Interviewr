@@ -27,7 +27,10 @@ function Login() {
                     password
                 );
 
-            login(data.token);
+            login(data.token, {
+                name: data.user.name,
+                email: data.user.email,
+            });
 
             alert(
                 "Login Successful"
