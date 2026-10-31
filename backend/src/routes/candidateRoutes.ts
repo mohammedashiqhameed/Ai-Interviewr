@@ -1,20 +1,22 @@
 import express from "express";
-
-import { protect }
-    from "../middleware/authMiddleware";
-
+import { protect } from "../middleware/authMiddleware";
 import {
-    createCandidate
-}
-    from "../controllers/candidateController";
+    createCandidate,
+    deleteCandidate
+} from "../controllers/candidateController";
 
-const router =
-    express.Router();
+const router = express.Router();
 
 router.post(
     "/",
     protect,
     createCandidate
+);
+
+router.delete(
+    "/:id",
+    protect,
+    deleteCandidate
 );
 
 export default router;

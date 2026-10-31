@@ -1,24 +1,36 @@
 import express from "express";
-
+import { upload } from "../middleware/uploadMiddleware";
+import { protect } from "../middleware/authMiddleware";
 import {
-    upload
-}
-    from "../middleware/uploadMiddleware";
+    uploadResume,
+    getResumeDownloadLink,
+    deleteResumeHandler
+} from "../controllers/resumeController";
 
-import {
-    uploadResume
-}
-    from "../controllers/resumeController";
-
-const router =
-    express.Router();
+const router = express.Router();
 
 router.post(
     "/upload",
-    upload.single(
-        "resume"
-    ),
+    upload.single("resume"),
     uploadResume
+);
+
+router.get(
+    "/download/:candidateId",
+    protect,
+    getResumeDownloadLink
+);
+
+router.get(
+    "/:candidateId/download",
+    protect,
+    getResumeDownloadLink
+);
+
+router.delete(
+    "/:candidateId",
+    protect,
+    deleteResumeHandler
 );
 
 export default router;

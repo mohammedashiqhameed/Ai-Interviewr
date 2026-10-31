@@ -26,6 +26,21 @@ const candidateSchema =
             resumeText: {
                 type: String,
                 default: ""
+            },
+
+            s3Key: {
+                type: String,
+                default: ""
+            },
+
+            fileName: {
+                type: String,
+                default: ""
+            },
+
+            size: {
+                type: Number,
+                default: 0
             }
         },
         {
