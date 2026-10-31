@@ -6,8 +6,6 @@ export const startInterview = async (req: any, res: any) => {
     try {
         const { candidateId } = req.body;
 
-        console.log("Candidate ID:", candidateId);
-
         const candidate = await Candidate.findById(candidateId);
 
         if (!candidate) {
@@ -15,8 +13,6 @@ export const startInterview = async (req: any, res: any) => {
                 message: "Candidate not found",
             });
         }
-
-        console.log("Candidate Found");
 
         if (!candidate.resumeText || candidate.resumeText.trim() === "") {
             return res.status(400).json({
@@ -56,13 +52,9 @@ STRICT GENERATION RULES:
 Return ONLY the raw JSON array.
 `;
 
-        console.log("Sending prompt to Gemini for question generation...");
-
         const result = await questionGenModel.generateContent(prompt);
 
         const responseText = result.response.text();
-
-        console.log("Gemini Response:", responseText);
 
         // Extract JSON from response (handle markdown code blocks if any)
         let jsonString = responseText.trim();
